@@ -2,7 +2,7 @@ from app import app, db, queue_client
 from datetime import datetime
 from app.models import Attendee, Conference, Notification
 from flask import render_template, session, request, redirect, url_for, flash, make_response, session
-from azure.servicebus import Message
+from azure.servicebus import Message, QueueClient
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import logging
@@ -16,15 +16,15 @@ def index():
 def registration():
     if request.method == 'POST':
         attendee = Attendee()
-        attendee.first_name = request.form['first_name']
-        attendee.last_name = request.form['last_name']
-        attendee.email = request.form['email']
-        attendee.job_position = request.form['job_position']
-        attendee.company = request.form['company']
-        attendee.city = request.form['city']
-        attendee.state = request.form['state']
-        attendee.interests = request.form['interest']
-        attendee.comments = request.form['message']
+        attendee.first_name = request.form.get('first_name')
+        attendee.last_name = request.form.get('last_name')
+        attendee.email = request.form.get('email')
+        attendee.job_position = request.form.get('job_position')
+        attendee.company = request.form.get('company')
+        attendee.city = request.form.get('city')
+        attendee.state = request.form.get('state')
+        attendee.interests = request.form.get('interest')
+        attendee.comments = request.form.get('message')
         attendee.conference_id = app.config.get('CONFERENCE_ID')
 
         try:
@@ -58,8 +58,8 @@ def notifications():
 def notification():
     if request.method == 'POST':
         notification = Notification()
-        notification.message = request.form['message']
-        notification.subject = request.form['subject']
+        notification.message = request.form.get('message')
+        notification.subject = request.form.get('subject')
         notification.status = 'Notifications submitted'
         notification.submitted_date = datetime.utcnow()
 
@@ -71,21 +71,25 @@ def notification():
             ## TODO: Refactor This logic into an Azure Function
             ## Code below will be replaced by a message queue
             #################################################
-            attendees = Attendee.query.all()
+            # attendees = Attendee.query.all()
 
-            for attendee in attendees:
-                subject = '{}: {}'.format(attendee.first_name, notification.subject)
-                send_email(attendee.email, subject, notification.message)
+            # for attendee in attendees:
+            #     subject = '{}: {}'.format(attendee.first_name, notification.subject)
+            #     send_email(attendee.email, subject, notification.message)
 
-            notification.completed_date = datetime.utcnow()
-            notification.status = 'Notified {} attendees'.format(len(attendees))
-            db.session.commit()
+            # notification.completed_date = datetime.utcnow()
+            # notification.status = 'Notified {} attendees'.format(len(attendees))
+            # db.session.commit()
             # TODO Call servicebus queue_client to enqueue notification ID
 
             #################################################
             ## END of TODO
             #################################################
 
+            notification_queue_client = QueueClient.from_connection_string(app.config.get('SERVICE_BUS_CONNECTION_STRING'), app.config.get('SERVICE_BUS_QUEUE_NAME'))
+            notification_queue_client.send(Message('{}'.format(notification.id)))
+
+            session['message'] = 'Thank you, {} {}, for registering!'.format(attendee.first_name, attendee.last_name)
             return redirect('/Notifications')
         except :
             logging.error('log unable to save notification')
