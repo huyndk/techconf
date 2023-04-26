@@ -71,7 +71,7 @@ def notification():
             ## TODO: Refactor This logic into an Azure Function
             ## Code below will be replaced by a message queue
             #################################################
-            # attendees = Attendee.query.all()
+            attendees = Attendee.query.all()
 
             # for attendee in attendees:
             #     subject = '{}: {}'.format(attendee.first_name, notification.subject)
@@ -88,12 +88,9 @@ def notification():
 
             notification_queue_client = QueueClient.from_connection_string(app.config.get('SERVICE_BUS_CONNECTION_STRING'), app.config.get('SERVICE_BUS_QUEUE_NAME'))
             notification_queue_client.send(Message('{}'.format(notification.id)))
-
-            session['message'] = 'Thank you, {} {}, for registering!'.format(attendee.first_name, attendee.last_name)
             return redirect('/Notifications')
-        except :
-            logging.error('log unable to save notification')
-
+        except (Exception) as error:
+            logging.error(error)
     else:
         return render_template('notification.html')
 
